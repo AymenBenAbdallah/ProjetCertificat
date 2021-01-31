@@ -10,8 +10,9 @@ private_subnet = '10.0.0.0/24'
 # The type of instance to use
 instance_type = "t2.medium"
 
+path = os.getenv("HOME") + "/.CertifProjet"
+
 def create_key_pair():
-    path = os.getenv("HOME") + "/.CertificatProjet"
 
     try:
         os.mkdir(path)
@@ -42,7 +43,7 @@ def create_vpc():
     vpc = utils.ec2_resource.create_vpc(CidrBlock=private_subnet)
     vpc.wait_until_exists()
     # assign a name to the VPC
-    vpc.create_tags(Tags=[{"Key": "Name", "Value": "cbdproject-vpc"}])
+    vpc.create_tags(Tags=[{"Key": "Name", "Value": "CertifProjet-vpc"}])
 
     # enable public dns hostname so that we can SSH into it later
     vpc.modify_attribute(EnableDnsSupport= { 'Value': True })
@@ -58,7 +59,7 @@ def create_vpc():
 
     # create a subnet in the VPC
     subnet = utils.ec2_resource.create_subnet(CidrBlock=private_subnet, VpcId=vpc.id)
-    subnet.create_tags(Tags=[{"Key": "Name", "Value": "cbdproject-subnet"}])
+    subnet.create_tags(Tags=[{"Key": "Name", "Value": "CertifProjet-subnet"}])
     routetable.associate_with_subnet(SubnetId=subnet.id)
 
     return vpc, subnet
@@ -75,8 +76,8 @@ def create_sg(vpc):
     # Create security group
     try:
         sg = {
-            'name': f"cbdproject-{str(time.time_ns())}",
-            'description': "SG for N7 Cloud x Big Data project"
+            'name': f"CertifProjet-{str(time.time_ns())}",
+            'description': "Projet de fin de module de sensibilisation"
         }
         security_group = vpc.create_security_group(GroupName=sg['name'], Description=sg['description'])
         print(f"Created security group {sg['name']} in VPC {vpc.id}.")
@@ -107,7 +108,7 @@ def create_sg(vpc):
             {
                 # SSH ingress open to only the machine's external IP address
                 'IpProtocol': 'tcp', 'FromPort': 22, 'ToPort': 22,
-                'IpRanges': [{'CidrIp': f'{ssh_cidr_ip}'}]
+                'IpRanges': [{'CidrIp': '0.0.0.0/0'}]
             },
             {
                 # Full open inside private network
@@ -119,7 +120,7 @@ def create_sg(vpc):
             {
                 # HTTP ingress for Spark open to only the machine's external IP address
                 'IpProtocol': 'tcp', 'FromPort': 50070, 'ToPort': 50070,
-                'IpRanges': [{'CidrIp': f'{ssh_cidr_ip}'}]
+                'IpRanges': [{'CidrIp': '0.0.0.0/0'}]
             },
         ]
         security_group.authorize_ingress(IpPermissions=ip_permissions)
@@ -188,7 +189,7 @@ def create_cluster():
 
     # Create key pair
     key_pair = create_key_pair()
-    print(f"Created a key pair {key_pair.key_name} and saved the private key to ~/.cbdproject/{key_pair.key_name}.pem")
+    print(f"Created a key pair {key_pair.key_name} and saved the private key to ~/.CertifProjet/{key_pair.key_name}.pem")
 
     # Create VPC and subnet
     vpc, subnet = create_vpc()
@@ -204,7 +205,7 @@ def create_cluster():
     print("Creating instances, please wait...")
 
     for i in range(nb_instances):
-        vm_instances[f'instance_{i}'] = create_instance(image_id, f"cbdproject-inst-{i}", key_pair.key_name, subnet.id, sec_group.group_id)
+        vm_instances[f'instance_{i}'] = create_instance(image_id, f"CertifProjet-inst-{i}", key_pair.key_name, subnet.id, sec_group.group_id)
 
     running_waiter = utils.ec2_client.get_waiter("instance_status_ok")
     running_waiter.wait(InstanceIds=[i.instance_id for i in vm_instances.values()])

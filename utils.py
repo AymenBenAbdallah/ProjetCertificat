@@ -1,19 +1,16 @@
-"""
-Purpose
-
-Use the AWS SDK for Python (Boto3) with the Amazon Elastic Compute Cloud
-(Amazon EC2) API to define some useful functions for the cbdproject.
-"""
-
 import boto3
 import botocore
 import urllib.request
 from fabric import Connection
 import os
+import time
+import paramiko
 
 ec2_resource = boto3.resource('ec2')
 ec2_client = boto3.client('ec2')
 ssm_client = boto3.client("ssm")
+
+path = os.getenv("HOME") + "/.CertifProjet"
 
 def get_ext_ip():
     '''
@@ -49,18 +46,18 @@ def get_image_id(name):
 def get_master(vm_instances):
     '''
     Gather EC2 master instance metadata.
-    :param vm_instances: the instances of cbdproject.
+    :param vm_instances: the instances of CertifProjet.
     :return: master instance metadata.
     '''
     for instance in vm_instances:
         for tag in instance.tags:
-            if tag['Key'] == 'Name' and tag['Value'] == "cbdproject-inst-0":
+            if tag['Key'] == 'Name' and tag['Value'] == "CertifProjet-inst-0":
                 return instance
 
 def get_slaves(vm_instances):
     '''
     Gather EC2 slaves instances metadata.
-    :param vm_instances: the instances of cbdproject.
+    :param vm_instances: the instances of CertifProjet.
     :return: slave instances metadata.
     '''
     slaves = []
@@ -69,21 +66,28 @@ def get_slaves(vm_instances):
         for tag in instance.tags:
             if (
                 tag['Key'] == 'Name' and
-                tag['Value'].startswith('cbdproject-inst-') and
-                tag['Value'] != "cbdproject-inst-0"
+                tag['Value'].startswith('CertifProjet-inst-') and
+                tag['Value'] != "CertifProjet-inst-0"
             ):
                 slaves.append(instance)
 
     return slaves
 
 def connect_ssh(instance_ip):
-    '''
-    Creates an SSH session to access with CLI to a CBD project instance.
-    :param instance_ip: The public IP address of the aimed instance.
-    :return: The client created by the connection.
-    '''
+    """def ssh_connect_with_retry(ip_address):
+        privkey = paramiko.RSAKey.from_private_key_file(
+            '/home/aymen/Downloads/momo_keypair.pem')
+        interval = 5
+        ssh = paramiko.SSHClient()
+        try:
+            print('SSH into the instance: {}'.format(ip_address))
+            ssh.connect(hostname=ip_address,
+                        username='ec2-user', pkey=privkey)
+            return ssh
+        except Exception as e:
+            print(e)"""
     # Get the private key of the CBD Project cluster
-    key_path = os.path.expanduser("~/.cbdproject/cbdproject-key.pem") 
+    key_path = os.path.expanduser(path + "/CertifProjet-key.pem") 
 
     # Here 'ubuntu' is user name and 'instance_ip' is public IP of EC2
     nodeClient = Connection(
@@ -109,61 +113,61 @@ def connect_ssh(instance_ip):
 
 def get_running_instances():
     '''
-    Fetch and extract instances from cbdproject.
+    Fetch and extract instances from CertifProjet.
     Instances must be running to be stopped.
-    :return: The running instances from cbdproject.
+    :return: The running instances from CertifProjet.
     '''
     running_instances = ec2_resource.instances.filter(Filters=[
         {'Name': 'instance-state-name', 'Values': ['running']},
-        {'Name': 'tag:Name', 'Values': ['cbdproject*']}
+        {'Name': 'tag:Name', 'Values': ['CertifProjet*']}
     ])
 
     return running_instances
 
 def get_subnet():
     '''
-    Fetch the private subnet of cbdproject.
-    :return: The private subnet of cbdproject.
+    Fetch the private subnet of CertifProjet.
+    :return: The private subnet of CertifProjet.
     '''
     subnet = ec2_client.describe_subnets(Filters=[{
         'Name': 'tag:Name',
-        'Values': ['cbdproject-subnet']
+        'Values': ['CertifProjet-subnet']
     }])['Subnets'][0]
 
     return subnet
 
 def get_vpcs():
     '''
-    Fetch VPCs of cbdproject.
-    :return: The VPCs from cbdproject.
+    Fetch VPCs of CertifProjet.
+    :return: The VPCs from CertifProjet.
     '''
     vpcs = ec2_client.describe_vpcs(Filters=[{
         'Name': 'tag:Name',
-        'Values': ['cbdproject*']
+        'Values': ['CertifProjet*']
     }])['Vpcs']
 
     return vpcs
 
 def get_security_groups():
     '''
-    Fetch security groups of cbdproject.
-    :return: The security groups from cbdproject.
+    Fetch security groups of CertifProjet.
+    :return: The security groups from CertifProjet.
     '''
     security_groups = ec2_client.describe_security_groups(Filters=[{
         'Name': 'group-name',
-        'Values': ['cbdproject*']
+        'Values': ['CertifProjet*']
     }])
 
     return security_groups
 
 def get_key_pairs():
     '''
-    Fetch key pairs of cbdproject.
-    :return: The key pairs from cbdproject.
+    Fetch key pairs of CertifProjet.
+    :return: The key pairs from CertifProjet.
     '''
     key_pairs = ec2_client.describe_key_pairs(Filters=[{
         'Name': 'key-name',
-        'Values': ['cbdproject*']
+        'Values': ['CertifProjet*']
     }])['KeyPairs']
 
     return key_pairs
@@ -186,7 +190,7 @@ def setup_network(vm_instances):
     """
     Create a pair of SSH keys on the master and copy the public key on each slave.
     Also sets up the hostname resolution on every nodes.
-    :param vm_instances: the instances of cbdproject.
+    :param vm_instances: the instances of CertifProjet.
     """
     master = get_master(vm_instances)
     slaves = get_slaves(vm_instances)
