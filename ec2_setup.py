@@ -4,7 +4,7 @@ import utils
 from botocore.exceptions import ClientError
 
 # Number of instances to create (at least 2) 
-nb_instances = 3
+nb_instances = 5
 # Private subnet range
 private_subnet = '10.0.0.0/24'
 # The type of instance to use
@@ -33,12 +33,6 @@ def create_key_pair():
         raise
 
 def create_vpc():
-    """
-    Create a virtual private cloud (VPC) for CBD Project.
-
-    :return: The newly created VPC and subnet.
-    """
-
     # create VPC
     vpc = utils.ec2_resource.create_vpc(CidrBlock=private_subnet)
     vpc.wait_until_exists()
@@ -65,14 +59,6 @@ def create_vpc():
     return vpc, subnet
 
 def create_sg(vpc):
-    """
-    Create a security group in the CBD Project virtual private cloud (VPC)
-    with inbound HTTP(S) and SSH access.
-
-    :param vpc: The VPC used for the security group.
-    :return: The newly created security group.
-    """
-
     # Create security group
     try:
         sg = {
@@ -80,9 +66,7 @@ def create_sg(vpc):
             'description': "Projet de fin de module de sensibilisation"
         }
         security_group = vpc.create_security_group(GroupName=sg['name'], Description=sg['description'])
-        print(f"Created security group {sg['name']} in VPC {vpc.id}.")
     except ClientError:
-        print(f"Couldn't create security group {sg['name']}.")
         raise
 
     # Get external IP for inbound SSH access
@@ -124,9 +108,6 @@ def create_sg(vpc):
             },
         ]
         security_group.authorize_ingress(IpPermissions=ip_permissions)
-        print(f"""Set inbound rules for {security_group.id} to allow all inbound HTTP and HTTPS
-        but only {ssh_cidr_ip} for SSH.
-        """)
     except ClientError:
         print(f"ERROR : Couldnt authorize inbound rules for {sg['name']}.")
         raise
@@ -134,20 +115,6 @@ def create_sg(vpc):
         return security_group    
 
 def create_instance(image_id, instance_name, key_name, subnet_id, security_group_id):
-    """
-    Creates a new Amazon EC2 instance. The instance automatically starts immediately after
-    it is created.
-    :param image_id: The Amazon Machine Image (AMI) that is used to create the
-                         instances.
-    :param instance_name: The name of the instance.
-    :param key_name: The name of a local file that contains the private key
-                          that is used to connect to the instances using SSH.
-    :param subnet_id: The subnet ID to associate to the instance.
-    :param security_group_id: The security group ID to associate to the instance.
-
-    :return: The newly created instance.
-    """
-
     # Create instance
     try:
         instance = utils.ec2_resource.create_instances(
@@ -171,16 +138,11 @@ def create_instance(image_id, instance_name, key_name, subnet_id, security_group
                 }]
         )[0]
     except ClientError:
-        print(f"Couldn't create instance with image {image_id}, instance type t2.micro, and key {key_name}.")
         raise
     else:
         return instance
 
 def create_cluster():
-    """
-    Sets up prerequisites and creates instances used in the project.
-    When this function returns, the instances are running and ready to use.
-    """
     # Get current external IP
     current_ip_address = utils.get_ext_ip()
 
@@ -189,20 +151,16 @@ def create_cluster():
 
     # Create key pair
     key_pair = create_key_pair()
-    print(f"Created a key pair {key_pair.key_name} and saved the private key to ~/.CertifProjet/{key_pair.key_name}.pem")
 
     # Create VPC and subnet
     vpc, subnet = create_vpc()
     vpc.wait_until_available()
-    print(f"Created a VPC with ID {vpc.id} and subnet {subnet.cidr_block}")
 
     # Create security group
     sec_group = create_sg(vpc)
-    print(f"Created security group {sec_group.group_name} that allows SSH, HTTP and HTTPS access from {current_ip_address}.")
 
     vm_instances = {}
 
-    print("Creating instances, please wait...")
 
     for i in range(nb_instances):
         vm_instances[f'instance_{i}'] = create_instance(image_id, f"CertifProjet-inst-{i}", key_pair.key_name, subnet.id, sec_group.group_id)
@@ -212,5 +170,3 @@ def create_cluster():
     
     for i in vm_instances.values():
         i.load()
-        print(f"Instance {i.instance_id} created !")
-        print(f"\tAvailable at {i.public_dns_name} ({i.public_ip_address}).")
